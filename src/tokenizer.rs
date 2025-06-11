@@ -1,6 +1,6 @@
-struct Token {
-	data: TokenData,
-	span: Span,
+pub(crate) struct Token {
+	pub data: TokenData,
+	pub span: Span,
 }
 
 #[derive(Clone, Copy)]
@@ -9,7 +9,7 @@ struct Char {
 	span: Span,
 }
 
-enum TokenData {
+pub(crate) enum TokenData {
 	Identifier { value: String },
 	Fn,
 	Let,
@@ -26,21 +26,15 @@ enum TokenData {
 }
 
 #[derive(Clone, Copy)]
-struct Span {
-	start: usize,
-	end: usize,
+pub(crate) struct Span {
+	pub start: usize,
+	pub end: usize,
 }
 
 enum State {
 	Neutral,
 	Word { buffer: Vec<Char> },
 	Symbol { symbol_start: usize, state: SymbolState },
-}
-
-enum StepResult {
-	Token(Token),
-	NoToken,
-	Error(Error),
 }
 
 enum SymbolState {
@@ -198,7 +192,7 @@ fn emit_word_token(buffer: &[Char]) -> Token {
 	Token { data, span }
 }
 
-fn tokenize(text: &str) -> Result<Vec<Token>, Error> {
+pub(crate) fn tokenize(text: &str) -> Result<Vec<Token>, Error> {
 	// TODO: make this single pass?
 
 	let mut chars = Vec::new();
