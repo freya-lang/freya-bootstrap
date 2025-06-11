@@ -41,7 +41,7 @@ enum SymbolState {
 	Hyphen,
 }
 
-struct Error;
+pub(crate) struct Error;
 
 struct Spool {
 	chars: Vec<Char>,
