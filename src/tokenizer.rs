@@ -1,34 +1,25 @@
-pub(crate) struct Token {
-	pub data: TokenData,
-	pub span: Span,
-}
+use crate::utils::{Span, Spanned};
 
-#[derive(Clone, Copy)]
-struct Char {
-	value: char,
-	span: Span,
-}
+pub(crate) type Token = Spanned<TokenData>;
+type Char = Spanned<char>;
 
 pub(crate) enum TokenData {
 	Identifier { value: String },
-	Fn,
+	FnLowercase,
+	FnUppercase,
 	Let,
 	Return,
 	Underscore,
 	Colon,
 	Semicolon,
+	Comma,
 	OpenParen,
 	CloseParen,
 	OpenBrace,
 	CloseBrace,
 	Equals,
 	Arrow,
-}
-
-#[derive(Clone, Copy)]
-pub(crate) struct Span {
-	pub start: usize,
-	pub end: usize,
+	Eof,
 }
 
 enum State {
@@ -41,6 +32,7 @@ enum SymbolState {
 	Hyphen,
 }
 
+#[derive(Debug)]
 pub(crate) struct Error;
 
 struct Spool {
@@ -98,22 +90,23 @@ impl Tokenizer {
 					return Action::Stop;
 				};
 
-				if is_whitespace(chr.value) {
+				if is_whitespace(chr.data) {
 					self.spool.advance();
 
 					return Action::Continue;
 				}
 
-				if is_word_start(chr.value) {
+				if is_word_start(chr.data) {
 					self.state = State::Word { buffer: vec![chr] };
 					self.spool.advance();
 
 					return Action::Continue;
 				}
 
-				match chr.value {
+				match chr.data {
 					':' => self.emit_single_char(chr, TokenData::Colon),
 					';' => self.emit_single_char(chr, TokenData::Semicolon),
+					',' => self.emit_single_char(chr, TokenData::Comma),
 					'(' => self.emit_single_char(chr, TokenData::OpenParen),
 					')' => self.emit_single_char(chr, TokenData::CloseParen),
 					'{' => self.emit_single_char(chr, TokenData::OpenBrace),
@@ -138,7 +131,7 @@ impl Tokenizer {
 					return Action::Stop;
 				};
 
-				if !is_word_continue(chr.value) {
+				if !is_word_continue(chr.data) {
 					self.output.push(emit_word_token(&buffer));
 					self.state = State::Neutral;
 
@@ -152,7 +145,7 @@ impl Tokenizer {
 			},
 			State::Symbol { symbol_start, state } => match state {
 				SymbolState::Hyphen => {
-					let Some(Char { value: '>', span }) = self.spool.peek() else {
+					let Some(Char { data: '>', span }) = self.spool.peek() else {
 						return Action::Error(Error);
 					};
 
@@ -174,7 +167,7 @@ impl Tokenizer {
 }
 
 fn emit_word_token(buffer: &[Char]) -> Token {
-	let value: String = buffer.iter().map(|i| i.value).collect();
+	let value: String = buffer.iter().map(|i| i.data).collect();
 
 	let span = Span {
 		start: buffer[0].span.start,
@@ -182,7 +175,8 @@ fn emit_word_token(buffer: &[Char]) -> Token {
 	};
 
 	let data = match &*value {
-		"fn" => TokenData::Fn,
+		"fn" => TokenData::FnLowercase,
+		"Fn" => TokenData::FnUppercase,
 		"let" => TokenData::Let,
 		"return" => TokenData::Return,
 		"_" => TokenData::Underscore,
@@ -192,15 +186,20 @@ fn emit_word_token(buffer: &[Char]) -> Token {
 	Token { data, span }
 }
 
-pub(crate) fn tokenize(text: &str) -> Result<Vec<Token>, Error> {
+pub(crate) struct TokenizationOutput {
+	pub tokens: Vec<Token>,
+	pub end: usize,
+}
+
+pub(crate) fn tokenize(text: &str) -> Result<TokenizationOutput, Error> {
 	// TODO: make this single pass?
 
 	let mut chars = Vec::new();
 
 	let mut iterator = text.char_indices();
-	while let Some((start, value)) = iterator.next() {
+	while let Some((start, data)) = iterator.next() {
 		chars.push(Char {
-			value,
+			data,
 			span: Span {
 				start,
 				end: iterator.offset(),
@@ -217,7 +216,12 @@ pub(crate) fn tokenize(text: &str) -> Result<Vec<Token>, Error> {
 	loop {
 		match tokenizer.step() {
 			Action::Continue => {},
-			Action::Stop => return Ok(tokenizer.output),
+			Action::Stop => {
+				return Ok(TokenizationOutput {
+					tokens: tokenizer.output,
+					end: tokenizer.spool.index,
+				});
+			},
 			Action::Error(error) => return Err(error),
 		}
 	}
