@@ -18,6 +18,9 @@ pub(crate) enum TokenData {
 	OpenBrace,
 	CloseBrace,
 	Equals,
+	Asterisk,
+	Question,
+	Apostrophe,
 	Arrow,
 	Eof,
 }
@@ -112,6 +115,9 @@ impl Tokenizer {
 					'{' => self.emit_single_char(chr, TokenData::OpenBrace),
 					'}' => self.emit_single_char(chr, TokenData::CloseBrace),
 					'=' => self.emit_single_char(chr, TokenData::Equals),
+					'*' => self.emit_single_char(chr, TokenData::Asterisk),
+					'?' => self.emit_single_char(chr, TokenData::Question),
+					'\'' => self.emit_single_char(chr, TokenData::Apostrophe),
 					'-' => {
 						self.state = State::Symbol {
 							symbol_start: chr.span.start,

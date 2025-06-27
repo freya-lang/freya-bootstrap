@@ -48,6 +48,10 @@ pub(crate) enum ExprData {
 	Binding {
 		binding_name: String,
 	},
+	Set {
+		level: usize,
+	},
+	Prop,
 }
 
 #[derive(Debug)]
@@ -242,6 +246,8 @@ impl Expr {
 						TokenData::OpenBrace => {},
 						TokenData::OpenParen => {},
 						TokenData::Identifier { .. } => {},
+						TokenData::Asterisk => {},
+						TokenData::Question => {},
 						_ => break,
 					}
 				}
@@ -321,6 +327,34 @@ impl Expr {
 
 				Ok(Expr {
 					data: ExprData::Binding { binding_name },
+					span,
+				})
+			},
+			TokenData::Asterisk => {
+				let initial_span = spool.peek().span;
+				let mut final_span = initial_span;
+				spool.advance();
+
+				let mut level = 0;
+				loop {
+					let TokenData::Apostrophe = spool.peek().data else {
+						break;
+					};
+
+					final_span = spool.peek().span;
+					spool.advance();
+
+					level += 1;
+				}
+
+				Ok(Expr::from(ExprData::Set { level }, initial_span, final_span))
+			},
+			TokenData::Question => {
+				let span = spool.peek().span;
+				spool.advance();
+
+				Ok(Expr {
+					data: ExprData::Prop,
 					span,
 				})
 			},

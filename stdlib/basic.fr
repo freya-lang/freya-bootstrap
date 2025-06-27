@@ -1,1 +1,5 @@
-let id: Fn(t: T) -> T = fn(t: T) t;
+let Prop = ?;
+let Set = *;
+let HigherSet = *';
+
+let id: Fn(T: *, t: T) -> T = fn(t: T) t;
