@@ -22,6 +22,24 @@
 			},
 		},
 		{
+			"label": "run tests",
+			"type": "shell",
+			"command": "cargo test",
+			"group": {
+				"kind": "test",
+				"isDefault": true,
+			},
+			"presentation": {
+				"echo": true,
+				"reveal": "always",
+				"focus": false,
+				"panel": "new",
+				"showReuseMessage": true,
+				"clear": false,
+				"close": true,
+			},
+		},
+		{
 			"label": "run cargo fmt",
 			"type": "shell",
 			"command": "cargo fmt",
