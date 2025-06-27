@@ -4,7 +4,7 @@
 	"version": "2.0.0",
 	"tasks": [
 		{
-			"label": "push to remote",
+			"label": "build",
 			"type": "shell",
 			"command": "cargo build",
 			"group": {
