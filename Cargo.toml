@@ -26,7 +26,3 @@ unused_import_braces = "warn"
 unused_lifetimes = "warn"
 unused_macro_rules = "warn"
 unused_qualifications = "warn"
-
-[[bin]]
-name = "freya"
-path = "src/main.rs"
