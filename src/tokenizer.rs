@@ -9,6 +9,7 @@ pub(crate) enum TokenData {
 	FnUppercase,
 	Let,
 	Return,
+	Type,
 	Underscore,
 	Colon,
 	Semicolon,
@@ -21,6 +22,8 @@ pub(crate) enum TokenData {
 	Asterisk,
 	Question,
 	Apostrophe,
+	AtSign,
+	DoubleColon,
 	Arrow,
 	Eof,
 }
@@ -28,15 +31,18 @@ pub(crate) enum TokenData {
 enum State {
 	Neutral,
 	Word { buffer: Vec<Char> },
-	Symbol { symbol_start: usize, state: SymbolState },
+	Symbol { start_span: Span, state: SymbolState },
 }
 
 enum SymbolState {
 	Hyphen,
+	Colon,
 }
 
 #[derive(Debug)]
-pub(crate) struct Error;
+pub(crate) struct Error {
+	pub location: usize,
+}
 
 struct Spool {
 	chars: Vec<Char>,
@@ -107,7 +113,6 @@ impl Tokenizer {
 				}
 
 				match chr.data {
-					':' => self.emit_single_char(chr, TokenData::Colon),
 					';' => self.emit_single_char(chr, TokenData::Semicolon),
 					',' => self.emit_single_char(chr, TokenData::Comma),
 					'(' => self.emit_single_char(chr, TokenData::OpenParen),
@@ -117,17 +122,29 @@ impl Tokenizer {
 					'=' => self.emit_single_char(chr, TokenData::Equals),
 					'*' => self.emit_single_char(chr, TokenData::Asterisk),
 					'?' => self.emit_single_char(chr, TokenData::Question),
+					'@' => self.emit_single_char(chr, TokenData::AtSign),
 					'\'' => self.emit_single_char(chr, TokenData::Apostrophe),
 					'-' => {
 						self.state = State::Symbol {
-							symbol_start: chr.span.start,
+							start_span: chr.span,
 							state: SymbolState::Hyphen,
 						};
 						self.spool.advance();
 
 						Action::Continue
 					},
-					_ => Action::Error(Error),
+					':' => {
+						self.state = State::Symbol {
+							start_span: chr.span,
+							state: SymbolState::Colon,
+						};
+						self.spool.advance();
+
+						Action::Continue
+					},
+					_ => Action::Error(Error {
+						location: self.spool.index,
+					}),
 				}
 			},
 			State::Word { buffer } => {
@@ -149,16 +166,41 @@ impl Tokenizer {
 
 				Action::Continue
 			},
-			State::Symbol { symbol_start, state } => match state {
+			State::Symbol { start_span, state } => match state {
 				SymbolState::Hyphen => {
 					let Some(Char { data: '>', span }) = self.spool.peek() else {
-						return Action::Error(Error);
+						return Action::Error(Error {
+							location: self.spool.index,
+						});
 					};
 
 					self.output.push(Token {
 						data: TokenData::Arrow,
 						span: Span {
-							start: *symbol_start,
+							start: start_span.start,
+							end: span.end,
+						},
+					});
+					self.state = State::Neutral;
+					self.spool.advance();
+
+					Action::Continue
+				},
+				SymbolState::Colon => {
+					let Some(Char { data: ':', span }) = self.spool.peek() else {
+						self.output.push(Token {
+							data: TokenData::Colon,
+							span: *start_span,
+						});
+						self.state = State::Neutral;
+
+						return Action::Continue;
+					};
+
+					self.output.push(Token {
+						data: TokenData::DoubleColon,
+						span: Span {
+							start: start_span.start,
 							end: span.end,
 						},
 					});
@@ -185,6 +227,7 @@ fn emit_word_token(buffer: &[Char]) -> Token {
 		"Fn" => TokenData::FnUppercase,
 		"let" => TokenData::Let,
 		"return" => TokenData::Return,
+		"type" => TokenData::Type,
 		"_" => TokenData::Underscore,
 		_ => TokenData::Identifier { value },
 	};

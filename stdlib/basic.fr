@@ -3,3 +3,17 @@ let Set = *;
 let HigherSet = *';
 
 let id: Fn(T: *, t: T) -> T = fn(t: T) t;
+
+type Nat {
+	zero: Nat,
+	succ: Fn(_: Nat) -> Nat,
+}
+
+type Vec (@: Nat, T: *) {
+	nil: Vec Nat::zero,
+	cons: Fn(n: Nat, _: Vec n) -> Vec (Nat::succ n),
+}
+
+type True: Prop {
+	trivial: True,
+}

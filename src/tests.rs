@@ -17,8 +17,33 @@ fn test_stdlib() {
 		let mut contents = String::new();
 		file.read_to_string(&mut contents).unwrap();
 
-		let tokenization_output = tokenize(&contents).unwrap();
-		let parsed = parse(tokenization_output).unwrap();
+		let tokenization_output = match tokenize(&contents) {
+			Ok(val) => val,
+			Err(error) => {
+				panic!(
+					"\n\
+					tokenization error, text follows:\n\
+					---------------------------------\n\
+					\n\
+					{}",
+					&contents[error.location ..]
+				);
+			},
+		};
+
+		let parsed = match parse(tokenization_output) {
+			Ok(val) => val,
+			Err(error) => {
+				panic!(
+					"\n\
+					parse error, text follows:\n\
+					--------------------------\n\
+					\n\
+					{}",
+					&contents[error.source_location ..]
+				);
+			},
+		};
 	}
 }
 

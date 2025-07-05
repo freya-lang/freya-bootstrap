@@ -3,7 +3,8 @@ use crate::utils::{Span, Spanned};
 
 #[derive(Debug)]
 pub(crate) struct Error {
-	location: usize,
+	pub token_index: usize,
+	pub source_location: usize,
 }
 
 struct Spool {
@@ -16,8 +17,11 @@ pub(crate) type File = Spanned<FileData>;
 pub(crate) type Expr = Spanned<ExprData>;
 pub(crate) type TypedBinding = Spanned<TypedBindingData>;
 pub(crate) type Binding = Spanned<BindingData>;
+pub(crate) type Name = Spanned<NameData>;
 pub(crate) type Statement = Spanned<StatementData>;
 pub(crate) type Item = Spanned<ItemData>;
+pub(crate) type ParameterOrIndex = Spanned<ParameterOrIndexData>;
+pub(crate) type Constructor = Spanned<ConstructorData>;
 
 #[derive(Debug)]
 pub(crate) struct FileData {
@@ -45,8 +49,8 @@ pub(crate) enum ExprData {
 		left: Box<Expr>,
 		right: Box<Expr>,
 	},
-	Binding {
-		binding_name: String,
+	Value {
+		path: Vec<String>,
 	},
 	Set {
 		level: usize,
@@ -67,6 +71,11 @@ pub(crate) enum BindingData {
 }
 
 #[derive(Debug)]
+pub(crate) struct NameData {
+	pub value: String,
+}
+
+#[derive(Debug)]
 pub(crate) enum StatementData {
 	Let { binding: TypedBinding, body: Expr },
 	Return { body: Expr },
@@ -74,7 +83,28 @@ pub(crate) enum StatementData {
 
 #[derive(Debug)]
 pub(crate) enum ItemData {
-	Let { binding: TypedBinding, body: Expr },
+	Let {
+		binding: TypedBinding,
+		body: Expr,
+	},
+	Type {
+		name: Name,
+		params_and_indexes: Vec<ParameterOrIndex>,
+		universe: Option<Expr>,
+		constructors: Vec<Constructor>,
+	},
+}
+
+#[derive(Debug)]
+pub(crate) enum ParameterOrIndexData {
+	Parameter { binding: Binding, ascribed_type: Expr },
+	Index { ascribed_type: Expr },
+}
+
+#[derive(Debug)]
+pub(crate) struct ConstructorData {
+	name: Name,
+	constructor_type: Expr,
 }
 
 impl Spool {
@@ -106,7 +136,8 @@ impl Spool {
 
 	fn error<T>(&self) -> Result<T, Error> {
 		Err(Error {
-			location: self.peek().span.start,
+			source_location: self.peek().span.start,
+			token_index: self.index,
 		})
 	}
 }
@@ -321,14 +352,31 @@ impl Expr {
 				))
 			},
 			TokenData::Identifier { ref value } => {
-				let span = spool.peek().span;
-				let binding_name = value.clone();
+				let initial_span = spool.peek().span;
+				let mut final_span = initial_span;
+
+				let mut path = Vec::new();
+				path.push(value.clone());
+
 				spool.advance();
 
-				Ok(Expr {
-					data: ExprData::Binding { binding_name },
-					span,
-				})
+				loop {
+					let TokenData::DoubleColon = spool.peek().data else {
+						break;
+					};
+					spool.advance();
+
+					let TokenData::Identifier { ref value } = spool.peek().data else {
+						return spool.error();
+					};
+					final_span = spool.peek().span;
+
+					path.push(value.clone());
+
+					spool.advance();
+				}
+
+				Ok(Expr::from(ExprData::Value { path }, initial_span, final_span))
 			},
 			TokenData::Asterisk => {
 				let initial_span = spool.peek().span;
@@ -413,6 +461,22 @@ impl Binding {
 	}
 }
 
+impl Name {
+	fn parse(spool: &mut Spool) -> Result<Self, Error> {
+		let TokenData::Identifier { ref value } = spool.peek().data else {
+			return spool.error();
+		};
+		let value = value.clone();
+		let span = spool.peek().span;
+		spool.advance();
+
+		Ok(Name {
+			data: NameData { value },
+			span,
+		})
+	}
+}
+
 impl Statement {
 	fn parse(spool: &mut Spool) -> Result<Self, Error> {
 		match spool.peek().data {
@@ -456,25 +520,178 @@ impl Statement {
 
 impl Item {
 	fn parse(spool: &mut Spool) -> Result<Self, Error> {
-		let initial_span = spool.peek().span;
-		spool.advance();
+		match spool.peek().data {
+			TokenData::Let => {
+				let initial_span = spool.peek().span;
+				spool.advance();
 
-		let binding = TypedBinding::parse(spool)?;
+				let binding = TypedBinding::parse(spool)?;
 
-		let TokenData::Equals = spool.peek().data else {
+				let TokenData::Equals = spool.peek().data else {
+					return spool.error();
+				};
+				spool.advance();
+
+				let body = Expr::parse_general(spool)?;
+
+				let TokenData::Semicolon = spool.peek().data else {
+					return spool.error();
+				};
+				let final_span = spool.peek().span;
+				spool.advance();
+
+				Ok(Item::from(ItemData::Let { binding, body }, initial_span, final_span))
+			},
+			TokenData::Type => {
+				let initial_span = spool.peek().span;
+				spool.advance();
+
+				let name = Name::parse(spool)?;
+
+				let mut params_and_indexes = Vec::new();
+
+				if let TokenData::OpenParen = spool.peek().data {
+					spool.advance();
+
+					loop {
+						if let TokenData::CloseParen = spool.peek().data {
+							spool.advance();
+							break;
+						}
+
+						params_and_indexes.push(ParameterOrIndex::parse(spool)?);
+
+						match spool.peek().data {
+							TokenData::Comma => {
+								spool.advance();
+							},
+							TokenData::CloseParen => {
+								spool.advance();
+								break;
+							},
+							_ => return spool.error(),
+						}
+					}
+				}
+
+				let mut universe = None;
+
+				if let TokenData::Colon = spool.peek().data {
+					spool.advance();
+
+					universe = Some(Expr::parse_atomic(spool)?);
+				}
+
+				let TokenData::OpenBrace = spool.peek().data else {
+					return spool.error();
+				};
+				spool.advance();
+
+				let mut constructors = Vec::new();
+				let final_span;
+
+				loop {
+					if let TokenData::CloseBrace = spool.peek().data {
+						final_span = spool.peek().span;
+						spool.advance();
+						break;
+					}
+
+					constructors.push(Constructor::parse(spool)?);
+
+					match spool.peek().data {
+						TokenData::Comma => {
+							spool.advance();
+						},
+						TokenData::CloseBrace => {
+							final_span = spool.peek().span;
+							spool.advance();
+							break;
+						},
+						_ => return spool.error(),
+					}
+				}
+
+				Ok(Item::from(
+					ItemData::Type {
+						name,
+						params_and_indexes,
+						universe,
+						constructors,
+					},
+					initial_span,
+					final_span,
+				))
+			},
+			_ => spool.error(),
+		}
+	}
+}
+
+impl ParameterOrIndex {
+	fn parse(spool: &mut Spool) -> Result<Self, Error> {
+		match spool.peek().data {
+			TokenData::AtSign => {
+				let initial_span = spool.peek().span;
+				spool.advance();
+
+				let TokenData::Colon = spool.peek().data else {
+					return spool.error();
+				};
+				spool.advance();
+
+				let ascribed_type = Expr::parse_general(spool)?;
+
+				let final_span = ascribed_type.span;
+
+				Ok(ParameterOrIndex::from(
+					ParameterOrIndexData::Index { ascribed_type },
+					initial_span,
+					final_span,
+				))
+			},
+			_ => {
+				let binding = Binding::parse(spool)?;
+
+				let TokenData::Colon = spool.peek().data else {
+					return spool.error();
+				};
+				spool.advance();
+
+				let ascribed_type = Expr::parse_general(spool)?;
+
+				let initial_span = binding.span;
+				let final_span = ascribed_type.span;
+
+				Ok(ParameterOrIndex::from(
+					ParameterOrIndexData::Parameter { binding, ascribed_type },
+					initial_span,
+					final_span,
+				))
+			},
+		}
+	}
+}
+
+impl Constructor {
+	fn parse(spool: &mut Spool) -> Result<Self, Error> {
+		let name = Name::parse(spool)?;
+
+		let TokenData::Colon = spool.peek().data else {
 			return spool.error();
 		};
 		spool.advance();
 
-		let body = Expr::parse_general(spool)?;
+		let constructor_type = Expr::parse_general(spool)?;
 
-		let TokenData::Semicolon = spool.peek().data else {
-			return spool.error();
-		};
-		let final_span = spool.peek().span;
-		spool.advance();
+		let initial_span = name.span;
+		let final_span = constructor_type.span;
 
-		Ok(Item::from(ItemData::Let { binding, body }, initial_span, final_span))
+		Ok(Constructor::from(
+			ConstructorData { name, constructor_type },
+			initial_span,
+			final_span,
+		))
 	}
 }
 
