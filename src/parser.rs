@@ -13,7 +13,7 @@ struct Spool {
 	eof: Token,
 }
 
-pub(crate) type File = Spanned<FileData>;
+pub(crate) type Source = Spanned<SourceData>;
 pub(crate) type Expr = Spanned<ExprData>;
 pub(crate) type TypedBinding = Spanned<TypedBindingData>;
 pub(crate) type Binding = Spanned<BindingData>;
@@ -24,7 +24,7 @@ pub(crate) type ParameterOrIndex = Spanned<ParameterOrIndexData>;
 pub(crate) type Constructor = Spanned<ConstructorData>;
 
 #[derive(Debug)]
-pub(crate) struct FileData {
+pub(crate) struct SourceData {
 	items: Vec<Item>,
 }
 
@@ -60,8 +60,8 @@ pub(crate) enum ExprData {
 
 #[derive(Debug)]
 pub(crate) struct TypedBindingData {
-	binding: Binding,
-	ascribed_type: Option<Expr>,
+	pub binding: Binding,
+	pub ascribed_type: Option<Expr>,
 }
 
 #[derive(Debug)]
@@ -103,8 +103,8 @@ pub(crate) enum ParameterOrIndexData {
 
 #[derive(Debug)]
 pub(crate) struct ConstructorData {
-	name: Name,
-	constructor_type: Expr,
+	pub name: Name,
+	pub constructor_type: Expr,
 }
 
 impl Spool {
@@ -142,7 +142,7 @@ impl Spool {
 	}
 }
 
-impl File {
+impl Source {
 	fn parse(spool: &mut Spool) -> Result<Self, Error> {
 		let mut items = Vec::new();
 
@@ -150,8 +150,8 @@ impl File {
 			items.push(Item::parse(spool)?);
 		}
 
-		Ok(File {
-			data: FileData { items },
+		Ok(Source {
+			data: SourceData { items },
 			span: Span {
 				start: 0,
 				end: spool.eof.span.end,
@@ -695,7 +695,7 @@ impl Constructor {
 	}
 }
 
-pub(crate) fn parse(tokenization_output: TokenizationOutput) -> Result<File, Error> {
+pub(crate) fn parse(tokenization_output: TokenizationOutput) -> Result<Source, Error> {
 	let mut spool = Spool::new(tokenization_output);
-	File::parse(&mut spool)
+	Source::parse(&mut spool)
 }

@@ -1,3 +1,4 @@
+mod evaluator;
 mod interaction_net;
 mod parser;
 #[cfg(test)]
