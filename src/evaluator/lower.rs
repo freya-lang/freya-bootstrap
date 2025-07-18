@@ -26,7 +26,7 @@ pub(crate) fn lower_expr(expr: Expr, bindings: &mut HashMap<String, usize>, mut 
 					let previous_value = bindings.insert(binding_name.clone(), level);
 					shadows.push((binding_name, previous_value));
 				}
-				level += 1;
+				level = level.checked_add(1).unwrap();
 			}
 
 			if !return_type.is_none() {
@@ -70,7 +70,7 @@ pub(crate) fn lower_expr(expr: Expr, bindings: &mut HashMap<String, usize>, mut 
 					let previous_value = bindings.insert(binding_name.clone(), level);
 					shadows.push((binding_name, previous_value));
 				}
-				level += 1;
+				level = level.checked_add(1).unwrap();
 			}
 
 			let return_type = lower_expr(*return_type, bindings, level);
