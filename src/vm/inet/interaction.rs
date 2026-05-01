@@ -2,7 +2,7 @@ use std::cmp::Ordering;
 use std::mem::swap;
 
 use crate::vm::inet::base::{Data, LambdaKind, Node, Port, PortKind};
-use crate::vm::inet::util::{anchor, join_slice};
+use crate::vm::inet::util::{anchor, increment_counter, join_slice};
 
 fn mirror<A, B>((a, b): (A, B)) -> (B, A) {
 	(b, a)
@@ -13,6 +13,18 @@ pub(crate) fn interact(left: &Port, right: &Port) {
 	debug_assert!(*right.kind() == PortKind::Main);
 	debug_assert!(left.linked().as_ref() == Some(right));
 	debug_assert!(right.linked().as_ref() == Some(left));
+
+	match (left.node().data(), right.node().data()) {
+		(&Data::Reformat { .. }, _) => {},
+		(&Data::Unlink { .. }, _) => {},
+		(&Data::Binding { .. }, _) => {},
+
+		(_, &Data::Reformat { .. }) => {},
+		(_, &Data::Unlink { .. }) => {},
+		(_, &Data::Binding { .. }) => {},
+
+		_ => increment_counter(),
+	}
 
 	left.unlink();
 

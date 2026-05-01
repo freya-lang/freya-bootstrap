@@ -1,3 +1,4 @@
+use crate::vm::inet::read_counter;
 use crate::vm::term::{Lazy, Strict, Term};
 
 fn lambda(body: Strict) -> Strict {
@@ -128,6 +129,22 @@ fn modular_exponentiation() {
 	let resolved = Lazy::encode(&expr).to_strict();
 
 	assert_stricts_equal(&resolved, expected);
+
+	dbg!(read_counter());
+}
+
+#[test]
+fn count_evals() {
+	let n = 500;
+
+	let expr = application(
+		application(application(encode_number(n), [encode_number(2)]), [id()]),
+		[id()],
+	);
+
+	Lazy::encode(&expr).to_strict();
+
+	dbg!(read_counter());
 }
 
 #[test]
