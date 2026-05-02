@@ -134,20 +134,6 @@ fn modular_exponentiation() {
 }
 
 #[test]
-fn count_evals() {
-	let n = 500;
-
-	let expr = application(
-		application(application(encode_number(n), [encode_number(2)]), [id()]),
-		[id()],
-	);
-
-	Lazy::encode(&expr).to_strict();
-
-	dbg!(read_counter());
-}
-
-#[test]
 fn many_exponentiations_on_id_id() {
 	const N: usize = 250;
 
@@ -161,4 +147,6 @@ fn many_exponentiations_on_id_id() {
 	let resolved = Lazy::encode(&expr).to_strict();
 
 	assert_stricts_equal(&resolved, &id);
+
+	dbg!(read_counter());
 }
