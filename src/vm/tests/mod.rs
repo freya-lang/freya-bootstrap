@@ -206,3 +206,12 @@ fn counterterm_extended() {
 
 	assert_stricts_equal(&resolved, &expected);
 }
+
+#[test]
+fn large_fan_stack() {
+	let expr = application(term("!n n (!f !x f (f x)) (!a !b a b)"), encode_number(100));
+	let expected = term("!a !b a b");
+	let resolved = Lazy::encode(&expr).to_strict();
+
+	assert_stricts_equal(&resolved, &expected);
+}
