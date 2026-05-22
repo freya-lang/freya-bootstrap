@@ -215,3 +215,12 @@ fn large_fan_stack() {
 
 	assert_stricts_equal(&resolved, &expected);
 }
+
+#[test]
+fn new_counterterm() {
+	let expr = application(
+		term("!q (!f !x f (f x)) (!f !x f (f x)) (!a !b (q a) (q b))"),
+		term("!a (!b !c b) a a"),
+	);
+	Lazy::encode(&expr).to_strict();
+}
